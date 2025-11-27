@@ -61,8 +61,8 @@ const IndemnityFormSigner = ({
       context.lineWidth = 2;
       contextRef.current = context;
 
-      // Load existing signature image if available
-      if (signatureImage && readOnly) {
+      // Load existing signature image if available (for both readOnly and editable modes)
+      if (signatureImage) {
         const img = new Image();
         img.onload = () => {
           context.drawImage(img, 0, 0, rect.width, rect.height);
@@ -72,29 +72,51 @@ const IndemnityFormSigner = ({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [customer, serviceType, signature, readOnly]);
+  }, [customer, serviceType, readOnly, signatureImage]);
 
-  const startDrawing = ({ nativeEvent }) => {
+  const getCoordinates = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+
+    // Handle both mouse and touch events
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  };
+
+  const startDrawing = (event) => {
     if (readOnly || !contextRef.current) return;
-    const { offsetX, offsetY } = nativeEvent;
+    event.preventDefault();
+
+    const { x, y } = getCoordinates(event);
     contextRef.current.beginPath();
-    contextRef.current.moveTo(offsetX, offsetY);
+    contextRef.current.moveTo(x, y);
     setIsDrawing(true);
   };
 
-  const draw = ({ nativeEvent }) => {
+  const draw = (event) => {
     if (!isDrawing || readOnly || !contextRef.current) return;
-    const { offsetX, offsetY } = nativeEvent;
-    contextRef.current.lineTo(offsetX, offsetY);
+    event.preventDefault();
+
+    const { x, y } = getCoordinates(event);
+    contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
   };
 
   const stopDrawing = () => {
-    if (!contextRef.current) return;
+    if (!contextRef.current || !isDrawing) return;
     contextRef.current.closePath();
     setIsDrawing(false);
+
+    // Save the signature as a data URL
     if (canvasRef.current) {
-      const dataUrl = canvasRef.current.toDataURL();
+      const dataUrl = canvasRef.current.toDataURL('image/png');
       setSignature(dataUrl);
       setSignatureImage(dataUrl);
     }
@@ -133,6 +155,26 @@ const IndemnityFormSigner = ({
 
     setLoading(true);
 
+    // Extract customer ID properly - handle registered customers, walk-in guests, and strings
+    let customerId = null;
+    if (typeof customer === 'string') {
+      // Customer ID passed as string
+      customerId = customer;
+    } else if (customer && customer._id) {
+      // Registered customer with _id
+      customerId = customer._id;
+    } else if (customer && !customer._id && serviceType === 'guest_pass') {
+      // Walk-in guest for guest pass - no customer ID, just customer info
+      customerId = null; // Will be handled by backend as walk-in
+    } else if (!customer && serviceType === 'guest_pass') {
+      // No customer info for guest pass - walk-in scenario
+      customerId = null;
+    } else {
+      alert('Invalid customer information');
+      setLoading(false);
+      return;
+    }
+
     const formData = {
       digitalSignature: signature,
       agreedToTerms,
@@ -140,9 +182,13 @@ const IndemnityFormSigner = ({
       photoReleaseConsent: photoRelease,
       medicalConsentGiven: medicalConsent,
       liabilityWaiverAccepted: liabilityWaiver,
-      serviceType,
-      customer: customer?._id || customer
+      serviceType
     };
+
+    // Only add customer if it exists (for registered customers)
+    if (customerId) {
+      formData.customer = customerId;
+    }
 
     try {
       await onSign(formData);
@@ -338,7 +384,7 @@ const IndemnityFormSigner = ({
                   onTouchEnd={stopDrawing}
                   className="signature-canvas"
                 />
-                {!signature && !signatureImage && (
+                {!signatureImage && (
                   <div className="signature-placeholder">
                     Sign here
                   </div>

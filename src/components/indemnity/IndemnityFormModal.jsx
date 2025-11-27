@@ -18,13 +18,20 @@ const IndemnityFormModal = ({
   const handleSign = async (formData) => {
     setLoading(true);
     try {
+      // Extract customer ID properly - handle walk-in guests
+      const customerId = typeof customer === 'string' ? customer : customer?._id;
+
       // Merge form data with additional service-specific data
       const completeFormData = {
         ...formData,
         ...additionalData,
-        customer: customer?._id || customer,
         serviceType
       };
+
+      // Only add customer if it exists (for registered customers, not walk-in guests)
+      if (customerId) {
+        completeFormData.customer = customerId;
+      }
 
       // Call the appropriate API based on service type
       let response;

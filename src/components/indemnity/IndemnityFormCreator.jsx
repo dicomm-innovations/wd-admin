@@ -53,7 +53,7 @@ const IndemnityFormCreator = ({ isOpen, onClose, onProceed }) => {
     expiryDate.setMonth(expiryDate.getMonth() + parseInt(expiryMonths));
 
     onProceed({
-      customer: selectedCustomer,
+      customer: selectedCustomer._id, // Send only the customer ID, not the whole object
       serviceType: selectedServiceType,
       expiryDate
     });

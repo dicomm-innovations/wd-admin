@@ -62,6 +62,7 @@ export const gymAPI = {
   getMemberships: (params) => api.get('/gym/memberships', { params }),
   getMembership: (id) => api.get(`/gym/memberships/${id}`),
   getQueueStatus: () => api.get('/gym/circuit/queue-status'),
+  getCircuitStats: () => api.get('/gym/circuit/stats'),
   getCircuitQueue: () => api.get('/gym/circuit/queue-status'),
   joinQueue: (data) => api.post('/gym/circuit/join-queue', data),
   startCircuit: (sessionId) => api.post('/gym/circuit/start', { sessionId }),
@@ -80,6 +81,7 @@ export const gymAPI = {
   validateGuestPass: (passId) => api.post('/gym/guest-passes/guest-pass/validate', { passId }),
   checkGuestPassValidity: (passId) => api.get(`/gym/guest-passes/guest-pass/${passId}/check`),
   cancelGuestPass: (passId, reason) => api.post(`/gym/guest-passes/guest-pass/${passId}/cancel`, { reason }),
+  getGuestPassSummary: () => api.get('/gym/guest-passes/summary'),
 };
 
 // Spa APIs

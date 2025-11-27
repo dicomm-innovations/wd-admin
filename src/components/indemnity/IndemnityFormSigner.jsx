@@ -13,6 +13,7 @@ const IndemnityFormSigner = ({
   readOnly = false
 }) => {
   const [signature, setSignature] = useState('');
+  const [signatureImage, setSignatureImage] = useState('');
   const [isDrawing, setIsDrawing] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [emergencyConsent, setEmergencyConsent] = useState(false);
@@ -35,6 +36,7 @@ const IndemnityFormSigner = ({
       // Load existing signature
       if (existingForm.digitalSignature) {
         setSignature(existingForm.digitalSignature);
+        setSignatureImage(existingForm.digitalSignature);
       }
     }
   }, [existingForm]);
@@ -60,12 +62,12 @@ const IndemnityFormSigner = ({
       contextRef.current = context;
 
       // Load existing signature image if available
-      if (signature && readOnly) {
+      if (signatureImage && readOnly) {
         const img = new Image();
         img.onload = () => {
           context.drawImage(img, 0, 0, rect.width, rect.height);
         };
-        img.src = signature;
+        img.src = signatureImage;
       }
     }, 100);
 
@@ -92,7 +94,9 @@ const IndemnityFormSigner = ({
     contextRef.current.closePath();
     setIsDrawing(false);
     if (canvasRef.current) {
-      setSignature(canvasRef.current.toDataURL());
+      const dataUrl = canvasRef.current.toDataURL();
+      setSignature(dataUrl);
+      setSignatureImage(dataUrl);
     }
   };
 
@@ -102,6 +106,7 @@ const IndemnityFormSigner = ({
     if (!canvas || !context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
     setSignature('');
+    setSignatureImage('');
   };
 
   const handleSubmit = async () => {
@@ -333,7 +338,7 @@ const IndemnityFormSigner = ({
                   onTouchEnd={stopDrawing}
                   className="signature-canvas"
                 />
-                {!signature && (
+                {!signature && !signatureImage && (
                   <div className="signature-placeholder">
                     Sign here
                   </div>

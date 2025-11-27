@@ -11,6 +11,7 @@ import IndemnityFormSigner from '../components/indemnity/IndemnityFormSigner';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { formatDate } from '../utils/formatters';
+import { format } from 'date-fns';
 import { gymAPI, indemnityAPI, customerAPI } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Gym.css';
@@ -21,6 +22,7 @@ const Gym = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [weeklyData, setWeeklyData] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -71,7 +73,23 @@ const Gym = () => {
     if (!connected) return;
 
     const unsubscribe = subscribeToCircuitQueue((data) => {
-      setQueue(data.queue);
+      if (!data) return;
+
+      const formattedQueue = (data.queue || []).map((item, idx) => ({
+        ...item,
+        position: item.position || idx + 1,
+        customerName: item.customer ? `${item.customer.firstName || ''} ${item.customer.lastName || ''}`.trim() : 'Unknown',
+        sessionId: item.sessionId,
+        joinedAt: item.scheduledStartTime || item.joinedAt || new Date(),
+        estimatedWait: item.estimatedWaitMinutes || item.estimatedWait || 0,
+        status: 'queued'
+      }));
+
+      setQueue(formattedQueue);
+      setStats(prev => ({
+        ...prev,
+        inQueue: data.queueLength || formattedQueue.length
+      }));
       info('Circuit queue updated', 2000);
     });
 
@@ -83,23 +101,39 @@ const Gym = () => {
       setLoading(true);
       setError(null);
 
-      const [membershipsRes, queueRes] = await Promise.all([
+      const [membershipsRes, circuitStatsRes] = await Promise.all([
         gymAPI.getMemberships({ status: 'active' }).catch(() => ({ memberships: [] })),
-        gymAPI.getCircuitQueue().catch(() => ({ queue: [] }))
+        gymAPI.getCircuitStats().catch(() => ({ data: null }))
       ]);
 
       if (membershipsRes?.memberships) {
         setMemberships(membershipsRes.memberships);
-        setStats({
+        setStats((prev) => ({
+          ...prev,
           total: membershipsRes.memberships.length,
-          active: membershipsRes.memberships.filter(m => m.status === 'active').length,
-          inQueue: queueRes?.queue?.length || 0,
-          sessionsToday: 0
-        });
+          active: membershipsRes.memberships.filter(m => m.status === 'active').length
+        }));
       }
 
-      if (queueRes?.queue) {
-        setQueue(queueRes.queue);
+      if (circuitStatsRes?.data) {
+        const { queueStatus, weeklySessions, sessionsToday } = circuitStatsRes.data;
+        const formattedQueue = (queueStatus?.queue || []).map((item, idx) => ({
+          ...item,
+          position: item.position || idx + 1,
+          customerName: item.customer ? `${item.customer.firstName || ''} ${item.customer.lastName || ''}`.trim() : 'Unknown',
+          sessionId: item.sessionId,
+          joinedAt: item.scheduledStartTime || item.joinedAt || new Date(),
+          estimatedWait: item.estimatedWaitMinutes || item.estimatedWait || 0,
+          status: 'queued'
+        }));
+
+        setQueue(formattedQueue);
+        setWeeklyData(weeklySessions || []);
+        setStats((prev) => ({
+          ...prev,
+          inQueue: queueStatus?.queueLength || formattedQueue.length,
+          sessionsToday: sessionsToday || 0
+        }));
       }
 
       setLoading(false);
@@ -488,16 +522,6 @@ const Gym = () => {
         <Badge variant="warning">{value}</Badge>
       )
     }
-  ];
-
-  const weeklyData = [
-    { day: 'Mon', sessions: 12 },
-    { day: 'Tue', sessions: 15 },
-    { day: 'Wed', sessions: 18 },
-    { day: 'Thu', sessions: 14 },
-    { day: 'Fri', sessions: 20 },
-    { day: 'Sat', sessions: 25 },
-    { day: 'Sun', sessions: 22 }
   ];
 
   return (

@@ -14,6 +14,7 @@ import { gymAPI, indemnityAPI } from '../services/api';
 
 const GuestPasses = () => {
   const [guestPasses, setGuestPasses] = useState([]);
+  const [summary, setSummary] = useState({ total: 0, active: 0, used: 0, expired: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +41,7 @@ const GuestPasses = () => {
   // Form states for Create/Edit
   const [formData, setFormData] = useState({
     membershipId: '',
+    walkIn: false,
     guestName: '',
     guestPhone: '',
     guestEmail: '',
@@ -76,19 +78,32 @@ const GuestPasses = () => {
       if (filters.status) params.status = filters.status;
       if (filters.search) params.search = filters.search;
 
-      const response = await gymAPI.getAllGuestPasses(params);
+      const [passesRes, summaryRes] = await Promise.all([
+        gymAPI.getAllGuestPasses(params),
+        gymAPI.getGuestPassSummary ? gymAPI.getGuestPassSummary() : Promise.resolve(null)
+      ]);
 
-      if (response.success) {
-        const passes = response.guestPasses || [];
+      if (passesRes?.success) {
+        const passes = passesRes.guestPasses || passesRes.data?.guestPasses || [];
+        const summaryPayload = passesRes.summary || passesRes.data?.summary || summaryRes?.data || summaryRes?.summary;
         setGuestPasses(passes);
 
-        // Calculate stats
-        setStats({
+        const computed = {
           total: passes.length,
           active: passes.filter(p => p.status === 'active').length,
           used: passes.filter(p => p.status === 'used').length,
           expired: passes.filter(p => p.status === 'expired').length
-        });
+        };
+
+        const merged = summaryPayload ? {
+          total: summaryPayload.totalPasses ?? summaryPayload.total ?? computed.total,
+          active: summaryPayload.activePasses ?? summaryPayload.active ?? computed.active,
+          used: summaryPayload.usedPasses ?? summaryPayload.used ?? computed.used,
+          expired: summaryPayload.expiredPasses ?? summaryPayload.expired ?? computed.expired
+        } : computed;
+
+        setStats(merged);
+        setSummary(merged);
       } else {
         throw new Error('Invalid response format');
       }
@@ -287,12 +302,11 @@ const GuestPasses = () => {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.membershipId || !formData.guestName) return;
+    if ((!formData.walkIn && !formData.membershipId) || !formData.guestName) return;
 
     try {
       setSubmitting(true);
-      await gymAPI.createGuestPass({
-        membershipId: formData.membershipId,
+      const payload = {
         guestDetails: {
           guestName: formData.guestName,
           guestPhone: formData.guestPhone,
@@ -300,7 +314,11 @@ const GuestPasses = () => {
           validDate: formData.validDate,
           restrictions: formData.restrictions
         }
-      });
+      };
+      if (!formData.walkIn) {
+        payload.membershipId = formData.membershipId;
+      }
+      await gymAPI.createGuestPass(payload);
       success('Guest pass created successfully!');
       setShowCreateModal(false);
       fetchGuestPasses();
@@ -727,26 +745,46 @@ const GuestPasses = () => {
         size="medium"
       >
         <form onSubmit={handleCreateSubmit} className="space-y-4">
-          <div>
-            <label className="form-label">
-              Membership <span className="text-red-500">*</span>
+          <div className="space-y-2">
+            <label className="form-label">Guest Type</label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="walkIn"
+                checked={formData.walkIn}
+                onChange={(e) => {
+                  handleFormChange(e);
+                  if (e.target.checked) {
+                    setFormData(prev => ({ ...prev, membershipId: '' }));
+                  }
+                }}
+                className="form-checkbox"
+              />
+              Walk-in guest (no membership)
             </label>
-            <select
-              name="membershipId"
-              value={formData.membershipId}
-              onChange={handleFormChange}
-              required
-              className="form-input"
-              disabled={loadingMemberships}
-            >
-              <option value="">Select a membership</option>
-              {memberships.map(membership => (
-                <option key={membership._id} value={membership._id}>
-                  {membership.membershipNumber} - {membership.customer?.firstName} {membership.customer?.lastName} ({membership.type})
-                </option>
-              ))}
-            </select>
           </div>
+
+          {!formData.walkIn && (
+            <div>
+              <label className="form-label">
+                Membership <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="membershipId"
+                value={formData.membershipId}
+                onChange={handleFormChange}
+                className="form-input"
+                disabled={loadingMemberships}
+              >
+                <option value="">Select a membership</option>
+                {memberships.map(membership => (
+                  <option key={membership._id} value={membership._id}>
+                    {membership.membershipNumber} - {membership.customer?.firstName} {membership.customer?.lastName} ({membership.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="form-label">
@@ -856,7 +894,7 @@ const GuestPasses = () => {
               type="submit"
               variant="primary"
               loading={submitting}
-              disabled={!formData.membershipId || !formData.guestName}
+              disabled={(!formData.walkIn && !formData.membershipId) || !formData.guestName}
               icon={Plus}
             >
               Create Guest Pass

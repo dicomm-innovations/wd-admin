@@ -55,6 +55,9 @@ export const WebSocketProvider = ({ children }) => {
       setConnected(true);
       setError(null);
       reconnectAttemptsRef.current = 0;
+
+      // Subscribe to queue updates for circuit tracking
+      newSocket.emit('subscribe-queue');
     });
 
     newSocket.on('disconnect', (reason) => {
@@ -135,7 +138,7 @@ export const WebSocketProvider = ({ children }) => {
 
   // Subscribe to circuit queue updates
   const subscribeToCircuitQueue = useCallback((callback) => {
-    return subscribe('queue:updated', callback);
+    return subscribe('queue-update', callback);
   }, [subscribe]);
 
   // Subscribe to booking status updates

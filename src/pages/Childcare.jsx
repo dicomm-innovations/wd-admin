@@ -87,27 +87,67 @@ const Childcare = () => {
       ]);
 
       if (childrenRes && bookingsRes) {
-        const fetchedChildren = childrenRes.children || [];
-        const fetchedBookings = bookingsRes.bookings || [];
+        const fetchedChildren = childrenRes.data?.children || childrenRes.children || [];
+        const normalizedChildren = fetchedChildren.map((c) => {
+          const parentName = c.parent ? `${c.parent.firstName || ''} ${c.parent.lastName || ''}`.trim() : 'N/A';
+          const dob = c.dateOfBirth || c.dob;
+          const age = dob ? Math.max(0, Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25))) : null;
+          return {
+            ...c,
+            parentName,
+            age,
+            status: c.status || 'active',
+            indemnityFormSigned: !!(c.indemnityForm || c.indemnityFormSigned)
+          };
+        });
+        const fetchedBookingsRaw = bookingsRes.data?.bookings || bookingsRes.bookings || [];
 
-        setChildren(fetchedChildren);
-        setBookings(fetchedBookings);
+        const normalizedBookings = fetchedBookingsRaw.map((b) => {
+          const childName = b.child ? `${b.child.firstName || ''} ${b.child.lastName || ''}`.trim() : 'Unknown';
+          const parentName = b.parent ? `${b.parent.firstName || ''} ${b.parent.lastName || ''}`.trim() : '';
+          const status = (b.status || '').replace('-', '_');
+          const checkInTime = b.checkInTime || b.date || b.createdAt;
+          const checkOutTime = b.checkOutTime || b.updatedAt || null;
+          return {
+            ...b,
+            bookingId: b.bookingId || b.id || b._id,
+            childName,
+            parentName,
+            checkInTime,
+            checkOutTime,
+            totalHours: b.totalHours || b.chargeableHours || 0,
+            chargeableHours: b.chargeableHours || b.totalHours || 0,
+            amountCharged: b.amountCharged || 0,
+            status
+          };
+        });
+
+        setChildren(normalizedChildren);
+        setBookings(normalizedBookings);
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const todayBookings = fetchedBookings.filter(b =>
-          new Date(b.checkInTime).setHours(0, 0, 0, 0) === today.getTime()
-        ).length;
+        const todayBookings = normalizedBookings.filter(b => {
+          const dateRef = b.date || b.checkInTime || b.createdAt;
+          if (!dateRef) return false;
+          const dateObj = new Date(dateRef);
+          return !isNaN(dateObj) && dateObj.setHours(0, 0, 0, 0) === today.getTime();
+        }).length;
 
         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthlyRevenue = fetchedBookings
-          .filter(b => new Date(b.checkInTime) >= firstDayOfMonth && b.status === 'completed')
+        const monthlyRevenue = normalizedBookings
+          .filter(b => {
+            const dateRef = b.date || b.checkInTime || b.createdAt;
+            if (!dateRef) return false;
+            const dateObj = new Date(dateRef);
+            return !isNaN(dateObj) && dateObj >= firstDayOfMonth && (b.status === 'checked_out' || b.status === 'completed');
+          })
           .reduce((sum, b) => sum + (b.amountCharged || 0), 0);
 
         setStats({
           totalChildren: fetchedChildren.length,
-          checkedIn: fetchedBookings.filter(b => b.status === 'checked_in').length,
+          checkedIn: normalizedBookings.filter(b => b.status === 'checked_in' || b.status === 'checked-in').length,
           todayBookings,
           monthlyRevenue
         });
@@ -373,21 +413,34 @@ const Childcare = () => {
     {
       key: 'bookingId',
       header: 'Booking ID',
-      render: (value) => <span className="customer-id">{value.slice(0, 20)}...</span>
+      render: (value) => value
+        ? <span className="customer-id">{value.toString().slice(0, 20)}...</span>
+        : '-'
     },
     {
       key: 'childName',
       header: 'Child'
     },
     {
+      key: 'parentName',
+      header: 'Parent'
+    },
+    {
       key: 'checkInTime',
       header: 'Check-In',
-      render: (value) => format(new Date(value), 'MMM dd, HH:mm')
+      render: (value) => {
+        const dateObj = value ? new Date(value) : null;
+        return dateObj && !isNaN(dateObj) ? format(dateObj, 'MMM dd, HH:mm') : 'N/A';
+      }
     },
     {
       key: 'checkOutTime',
       header: 'Check-Out',
-      render: (value) => value ? format(new Date(value), 'HH:mm') : 'In Progress'
+      render: (value) => {
+        if (!value) return 'In Progress';
+        const dateObj = new Date(value);
+        return !isNaN(dateObj) ? format(dateObj, 'HH:mm') : value;
+      }
     },
     {
       key: 'totalHours',
@@ -412,10 +465,12 @@ const Childcare = () => {
       render: (value) => {
         const variants = {
           checked_in: 'warning',
+          checked_out: 'info',
           completed: 'success',
-          cancelled: 'error'
+          cancelled: 'error',
+          scheduled: 'default'
         };
-        return <Badge variant={variants[value]}>{value.replace('_', ' ')}</Badge>;
+        return <Badge variant={variants[value] || 'default'}>{value.replace('_', ' ')}</Badge>;
       }
     }
   ];
@@ -427,13 +482,6 @@ const Childcare = () => {
           {error}
         </div>
       )}
-
-      <div className="childcare-header mb-lg">
-        <div className="connection-status">
-          <div className={`status-dot ${connected ? 'online' : ''}`}></div>
-          {connected ? 'Connected' : 'Disconnected'}
-        </div>
-      </div>
 
       <div className="grid grid-4 mb-xl">
         <StatCard

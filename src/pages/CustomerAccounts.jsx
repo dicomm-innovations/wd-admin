@@ -14,9 +14,11 @@ import './CustomerAccounts.css';
 
 const CustomerAccounts = () => {
   const [customers, setCustomers] = useState([]);
+  const [initialCustomers, setInitialCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [accountData, setAccountData] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [profileSummary, setProfileSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreditModal, setShowCreditModal] = useState(false);
@@ -31,12 +33,32 @@ const CustomerAccounts = () => {
   const { success, error: showError } = useNotification();
 
   useEffect(() => {
+    loadInitialCustomers();
+  }, []);
+
+  useEffect(() => {
     if (searchTerm.length >= 2) {
       searchCustomers();
-    } else {
-      setCustomers([]);
+    } else if (initialCustomers.length > 0) {
+      setCustomers(initialCustomers);
     }
-  }, [searchTerm]);
+  }, [searchTerm, initialCustomers]);
+
+  const loadInitialCustomers = async () => {
+    try {
+      setLoading(true);
+      const response = await customerAPI.getAll({ limit: 20 });
+      if (response.success) {
+        const list = response.customers || response.data?.customers || [];
+        setInitialCustomers(list);
+        setCustomers(list);
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to load customers');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const searchCustomers = async () => {
     try {
@@ -57,9 +79,10 @@ const CustomerAccounts = () => {
       setLoading(true);
       setSelectedCustomer(customer);
 
-      const [accountRes, transactionsRes] = await Promise.all([
+      const [accountRes, transactionsRes, summaryRes] = await Promise.all([
         paymentRecordsAPI.getCustomerAccount(customer._id),
-        paymentRecordsAPI.getTransactions(customer._id, { limit: 50 })
+        paymentRecordsAPI.getTransactions(customer._id, { limit: 50 }),
+        customerAPI.getProfileSummary(customer._id)
       ]);
 
       if (accountRes.success) {
@@ -68,6 +91,10 @@ const CustomerAccounts = () => {
 
       if (transactionsRes.success) {
         setTransactions(transactionsRes.data.transactions);
+      }
+
+      if (summaryRes?.success) {
+        setProfileSummary(summaryRes.summary || summaryRes.data?.summary || null);
       }
     } catch (err) {
       showError(err.message || 'Failed to load customer account');
@@ -142,20 +169,33 @@ const CustomerAccounts = () => {
 
   const getTransactionTypeColor = (type) => {
     const colors = {
-      credit: 'text-green-600',
-      debit: 'text-red-600',
-      refund: 'text-blue-600',
-      change_added: 'text-purple-600',
-      bonus: 'text-yellow-600',
-      adjustment: 'text-gray-600'
+      credit: 'txn-type-credit',
+      debit: 'txn-type-debit',
+      refund: 'txn-type-refund',
+      change_added: 'txn-type-change',
+      bonus: 'txn-type-bonus',
+      adjustment: 'txn-type-adjustment'
     };
-    return colors[type] || 'text-gray-600';
+    return colors[type] || 'txn-type-default';
   };
 
   const getTransactionIcon = (type) => {
     const isCredit = ['credit', 'refund', 'change_added', 'bonus'].includes(type);
-    return isCredit ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />;
+    return isCredit ? <TrendingUp className="txn-icon" /> : <TrendingDown className="txn-icon" />;
   };
+
+  const totalCredits = transactions
+    .filter(txn => ['credit', 'refund', 'change_added', 'bonus'].includes(txn.type))
+    .reduce((sum, txn) => sum + txn.amount, 0);
+
+  const totalDebits = transactions
+    .filter(txn => txn.type === 'debit')
+    .reduce((sum, txn) => sum + txn.amount, 0);
+
+  const businessUnits = profileSummary?.businessUnits || [];
+  const membership = profileSummary?.membership;
+  const vouchers = profileSummary?.vouchers;
+  const children = profileSummary?.children || [];
 
   return (
     <Layout>
@@ -188,23 +228,25 @@ const CustomerAccounts = () => {
                 <button
                   key={customer._id}
                   onClick={() => loadCustomerAccount(customer)}
+                  className="customer-card"
                   style={{ padding: 'var(--spacing-lg)', border: '2px solid var(--gray-200)', borderRadius: 'var(--radius-lg)', background: 'var(--white)', cursor: 'pointer', textAlign: 'left', transition: 'all var(--transition-base)' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--primary-color)';
-                    e.currentTarget.style.background = 'rgba(35, 131, 155, 0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--gray-200)';
-                    e.currentTarget.style.background = 'var(--white)';
-                  }}
                 >
                   <div style={{ fontWeight: '500', color: 'var(--gray-900)' }}>
                     {customer.firstName} {customer.lastName}
                   </div>
                   <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.25rem' }}>{customer.email}</div>
                   <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)' }}>{customer.phone}</div>
+                  <div className="customer-card-hint" style={{ marginTop: 'var(--spacing-md)', fontSize: '0.8125rem', color: '#298ca3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>Click to view account</span>
+                  </div>
                 </button>
               ))}
+            </div>
+          )}
+
+          {customers.length === 0 && !selectedCustomer && (
+            <div style={{ marginTop: 'var(--spacing-xl)', textAlign: 'center', color: 'var(--gray-500)' }}>
+              {loading ? 'Loading customers...' : 'No customers yet. Start typing to search.'}
             </div>
           )}
         </Card>
@@ -212,6 +254,70 @@ const CustomerAccounts = () => {
         {/* Customer Account Details */}
         {selectedCustomer && accountData && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2xl)' }}>
+            {/* Customer Snapshot */}
+            <div className="grid grid-3" style={{ gap: 'var(--spacing-lg)' }}>
+              <Card>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '4px' }}>Account Balance</p>
+                    <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{formatCurrency(accountData.accountBalance || 0)}</h3>
+                  </div>
+                  <Badge variant="success">Wallet</Badge>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-md)' }}>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)' }}>
+                    Credits: <span style={{ color: 'var(--success)' }}>{formatCurrency(totalCredits)}</span>
+                  </div>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)' }}>
+                    Debits: <span style={{ color: 'var(--error)' }}>{formatCurrency(totalDebits)}</span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card>
+                <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '4px' }}>Customer Overview</p>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 700 }}>
+                  {profileSummary?.customer?.name || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-md)', fontSize: '0.875rem', color: 'var(--gray-700)' }}>
+                  <div>Customer ID: <span style={{ fontWeight: '500' }}>{profileSummary?.customer?.customerId || selectedCustomer.customerId}</span></div>
+                  <div>Loyalty Points: <span style={{ fontWeight: '500' }}>{profileSummary?.loyaltyPoints ?? 0}</span></div>
+                  <div>Children: <span style={{ fontWeight: '500' }}>{children.length}</span></div>
+                  <div>Vouchers: <span style={{ fontWeight: '500' }}>{vouchers?.total ?? 0}</span></div>
+                </div>
+                {businessUnits.length > 0 && (
+                  <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {businessUnits.map((unit) => (
+                      <Badge key={unit.unit || unit} variant="info">
+                        {unit.unit || unit}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '4px' }}>Membership</p>
+                {membership ? (
+                  <>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '4px' }}>{membership.membershipNumber || membership.membershipId || 'Active membership'}</h3>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--gray-700)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <Badge variant="success">{(membership.type || 'standard').toUpperCase()}</Badge>
+                      <span>Started: {membership.startDate ? format(new Date(membership.startDate), 'MMM dd, yyyy') : 'N/A'}</span>
+                      <span>Status: {membership.status || 'active'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: '0.95rem', color: 'var(--gray-600)' }}>No active membership on file</div>
+                )}
+                {vouchers?.total > 0 && (
+                  <div style={{ marginTop: 'var(--spacing-md)', fontSize: '0.85rem', color: 'var(--gray-700)' }}>
+                    Vouchers: {vouchers.total} (Spa: {vouchers.spa || 0}, Childcare: {vouchers.childcare || 0})
+                  </div>
+                )}
+              </Card>
+            </div>
+
             {/* Customer Info & Balance */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--spacing-xl)' }}>
               {/* Customer Info */}
@@ -236,6 +342,7 @@ const CustomerAccounts = () => {
                     setSelectedCustomer(null);
                     setAccountData(null);
                     setTransactions([]);
+                    setProfileSummary(null);
                   }}
                 >
                   Search Another Customer

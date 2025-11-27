@@ -1,0 +1,31 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.layout-main {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  transition: margin-left var(--transition-base);
+  overflow: hidden;
+}
+
+.sidebar-collapsed ~ .layout-main {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+.layout-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-2xl);
+  background: var(--gray-50);
+}
+
+@media (max-width: 768px) {
+  .layout-content {
+    padding: var(--spacing-lg);
+  }
+}

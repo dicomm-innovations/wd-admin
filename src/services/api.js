@@ -72,6 +72,10 @@ export const gymAPI = {
   createClass: (data) => api.post('/gym/classes', data),
   updateClass: (id, data) => api.put(`/gym/classes/${id}`, data),
   deleteClass: (id) => api.delete(`/gym/classes/${id}`),
+  cancelClassBooking: (bookingId) => api.post(`/gym/classes/bookings/${bookingId}/cancel`),
+  joinClassWaitlist: (classId, data) => api.post(`/gym/classes/${classId}/waitlist`, data),
+  leaveClassWaitlist: (classId, data) => api.delete(`/gym/classes/${classId}/waitlist`, { data }),
+  getClassWaitlist: (classId) => api.get(`/gym/classes/${classId}/waitlist`),
   // Guest Pass APIs
   getAllGuestPasses: (params) => api.get('/gym/guest-passes', { params }),
   getMembershipGuestPasses: (membershipId) => api.get(`/gym/guest-passes/membership/${membershipId}`),
@@ -468,6 +472,7 @@ export const ptAdminAPI = {
 
   // Analytics
   getPTAnalytics: (params) => api.get('/pt/admin/analytics', { params }),
+  getCalendar: (params) => api.get('/pt/admin/calendar', { params }),
 };
 
 // Referral System Admin APIs

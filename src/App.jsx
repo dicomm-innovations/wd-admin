@@ -35,6 +35,7 @@ import TreatmentManagement from './pages/TreatmentManagement';
 import PTTrainers from './pages/PTTrainers';
 import PTSessions from './pages/PTSessions';
 import PTAnalytics from './pages/PTAnalytics';
+import TrainerSchedule from './pages/TrainerSchedule';
 import GymClasses from './pages/GymClasses';
 import Referrals from './pages/Referrals';
 import ReferralAnalytics from './pages/ReferralAnalytics';
@@ -341,6 +342,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <PTAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/schedule"
+        element={
+          <ProtectedRoute>
+            <TrainerSchedule />
           </ProtectedRoute>
         }
       />

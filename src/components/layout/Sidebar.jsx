@@ -108,6 +108,13 @@ const Sidebar = () => {
       color: 'var(--gym-color)'
     },
     {
+      icon: Calendar,
+      label: 'Trainer Schedule',
+      path: '/schedule',
+      show: isSuperAdmin || hasBusinessUnit('gym') || hasBusinessUnit('spa'),
+      color: 'var(--primary-color)'
+    },
+    {
       icon: BarChart3,
       label: 'PT Analytics',
       path: '/pt/analytics',

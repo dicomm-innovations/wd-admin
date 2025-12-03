@@ -212,10 +212,21 @@ const GuestPasses = () => {
 
   const handleSignIndemnityForm = async (formData) => {
     try {
+      const customerId = selectedPassForIndemnity?.member?._id ||
+        selectedPassForIndemnity?.member ||
+        selectedPassForIndemnity?.memberId ||
+        null;
+
       await indemnityAPI.createGuestPassForm({
         ...formData,
-        guestPass: selectedPassForIndemnity._id || selectedPassForIndemnity.id,
-        guestName: selectedPassForIndemnity.guestName
+        customer: customerId || undefined,
+        guestPass: selectedPassForIndemnity._id || selectedPassForIndemnity.id || selectedPassForIndemnity.passId,
+        guestName: selectedPassForIndemnity.guestName,
+        guestDetails: {
+          name: selectedPassForIndemnity.guestName,
+          email: selectedPassForIndemnity.guestEmail || '',
+          phone: selectedPassForIndemnity.guestPhone || ''
+        }
       });
 
       success('Guest pass liability waiver signed successfully!');

@@ -145,12 +145,23 @@ const IndemnityForms = () => {
     {
       key: 'customer',
       header: 'Customer',
-      render: (value) => (
-        <div>
-          <div className="font-medium text-gray-900">{value?.firstName} {value?.lastName}</div>
-          <div className="text-xs text-gray-500">{value?.email}</div>
-        </div>
-      )
+      render: (value, row) => {
+        const guest = row.guestDetails;
+        const name = value ? `${value.firstName || ''} ${value.lastName || ''}`.trim() : guest?.name || 'Walk-in guest';
+        const email = value?.email || guest?.email;
+        const phone = value?.phone || guest?.phone;
+
+        return (
+          <div>
+            <div className="font-medium text-gray-900">{name || 'N/A'}</div>
+            {(email || phone) && (
+              <div className="text-xs text-gray-500">
+                {[email, phone].filter(Boolean).join(' • ')}
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'signedDate',
@@ -381,7 +392,12 @@ const IndemnityForms = () => {
         {selectedForm && (
           <IndemnityFormSigner
             serviceType={selectedForm.serviceType}
-            customer={selectedForm.customer}
+            customer={selectedForm.customer || {
+              firstName: selectedForm.guestDetails?.name || 'Guest',
+              lastName: '',
+              email: selectedForm.guestDetails?.email,
+              phone: selectedForm.guestDetails?.phone
+            }}
             existingForm={selectedForm}
             readOnly={true}
             onCancel={() => {
@@ -422,7 +438,12 @@ const IndemnityForms = () => {
         >
           <IndemnityFormSigner
             serviceType={selectedForm.serviceType}
-            customer={selectedForm.customer}
+            customer={selectedForm.customer || {
+              firstName: selectedForm.guestDetails?.name || 'Guest',
+              lastName: '',
+              email: selectedForm.guestDetails?.email,
+              phone: selectedForm.guestDetails?.phone
+            }}
             existingForm={selectedForm}
             readOnly={false}
             onSign={async (formData) => {

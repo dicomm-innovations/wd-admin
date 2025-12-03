@@ -27,6 +27,7 @@ const ProgressTracking = () => {
   const [selectedTab, setSelectedTab] = useState('gym');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [commentInputs, setCommentInputs] = useState({});
 
   useEffect(() => {
     loadCustomers();
@@ -90,6 +91,26 @@ const ProgressTracking = () => {
       alert('Photo deleted successfully');
     } catch (err) {
       alert('Failed to delete photo: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleAddComment = async (type, photoId) => {
+    const text = commentInputs[photoId];
+    if (!text || !text.trim()) {
+      alert('Please enter a comment');
+      return;
+    }
+
+    try {
+      if (type === 'gym') {
+        await progressAPI.addGymComment(photoId, { comment: text.trim() });
+      } else {
+        await progressAPI.addSpaComment(photoId, { comment: text.trim() });
+      }
+      setCommentInputs(prev => ({ ...prev, [photoId]: '' }));
+      await loadProgressData();
+    } catch (err) {
+      alert('Failed to add comment: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -328,6 +349,146 @@ const ProgressTracking = () => {
                           onDelete={handleDeletePhoto}
                         />
                       ))}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Notes & Comments */}
+              {progressGallery && (
+                <Card>
+                  <div style={{ padding: '24px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
+                      Notes & Comments
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {(selectedTab === 'gym' ? progressGallery.gym || [] : progressGallery.spa || []).map((entry) => {
+                        const comments = entry.comments || [];
+                        const measurementEntries = entry.measurements
+                          ? Object.entries(entry.measurements).filter(([, val]) => val !== null && val !== undefined)
+                          : [];
+
+                        return (
+                          <div
+                            key={entry.photoId}
+                            style={{
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '12px',
+                              padding: '16px',
+                              backgroundColor: '#f9fafb'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <div style={{ fontWeight: '600', color: '#1f2937' }}>
+                                {new Date(entry.dateTaken || entry.createdAt).toLocaleString()}
+                              </div>
+                              <Badge variant="secondary">
+                                {selectedTab === 'gym' ? (entry.photoType || 'progress') : (entry.treatmentName || entry.treatmentType)}
+                              </Badge>
+                            </div>
+
+                            {selectedTab === 'gym' && measurementEntries.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                                {measurementEntries.map(([key, val]) => (
+                                  <span
+                                    key={key}
+                                    style={{
+                                      padding: '6px 10px',
+                                      backgroundColor: '#eef2ff',
+                                      borderRadius: '8px',
+                                      fontSize: '12px',
+                                      color: '#4338ca'
+                                    }}
+                                  >
+                                    {key.replace('_', ' ')}: {val}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {selectedTab === 'spa' && (entry.observations || entry.homeCarePlan || entry.therapistNotes?.shared) && (
+                              <div style={{ marginBottom: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {entry.observations && (
+                                  <div style={{ fontSize: '13px', color: '#374151' }}>
+                                    <strong>Observations: </strong>{entry.observations.skinTexture || entry.observations.overallCondition || JSON.stringify(entry.observations)}
+                                  </div>
+                                )}
+                                {entry.therapistNotes?.shared && (
+                                  <div style={{ fontSize: '13px', color: '#374151' }}>
+                                    <strong>Therapist Notes: </strong>{entry.therapistNotes.shared}
+                                  </div>
+                                )}
+                                {entry.homeCarePlan && (
+                                  <div style={{ fontSize: '13px', color: '#374151' }}>
+                                    <strong>Home Care: </strong>{entry.homeCarePlan}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div style={{ marginBottom: '12px', fontSize: '13px', color: '#111827' }}>
+                              <strong>Client Notes: </strong>{entry.notes || entry.therapistNotes?.shared || 'No notes'}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ fontWeight: '600', color: '#1f2937' }}>Staff Comments</div>
+                              {comments.length === 0 && (
+                                <div style={{ fontSize: '12px', color: '#6b7280' }}>No comments yet</div>
+                              )}
+                              {comments.map((c, idx) => (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    padding: '8px',
+                                    backgroundColor: '#fff',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e5e7eb'
+                                  }}
+                                >
+                                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+                                    {c.authorName || 'Staff'} <span style={{ color: '#6b7280', fontWeight: '400' }}>({c.authorRole || 'staff'})</span>
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
+                                    {c.comment}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                                    {new Date(c.createdAt).toLocaleString()}
+                                  </div>
+                                </div>
+                              ))}
+
+                              <textarea
+                                value={commentInputs[entry.photoId] || ''}
+                                onChange={(e) => setCommentInputs(prev => ({ ...prev, [entry.photoId]: e.target.value }))}
+                                placeholder="Add a staff comment..."
+                                style={{
+                                  width: '100%',
+                                  minHeight: '60px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #d1d5db',
+                                  padding: '10px',
+                                  fontSize: '13px'
+                                }}
+                              />
+                              <button
+                                onClick={() => handleAddComment(selectedTab, entry.photoId)}
+                                style={{
+                                  alignSelf: 'flex-end',
+                                  padding: '8px 12px',
+                                  backgroundColor: selectedTab === 'gym' ? '#8b5cf6' : '#ec4899',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  cursor: 'pointer',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                Post Comment
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </Card>

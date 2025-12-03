@@ -117,6 +117,8 @@ export const progressAPI = {
   getProgressSummary: (customerId) => api.get(`/progress/summary/${customerId}`),
   getMyProgress: (params) => api.get('/progress/my-progress', { params }),
   deleteProgress: (type, photoId) => api.delete(`/progress/${type}/${photoId}`),
+  addGymComment: (photoId, data) => api.post(`/progress/gym/${photoId}/comment`, data),
+  addSpaComment: (photoId, data) => api.post(`/progress/spa/${photoId}/comment`, data),
 };
 
 // Manufacturing APIs

@@ -178,6 +178,15 @@ export const marketingAPI = {
   approveContent: (id, data) => api.put(`/marketing/content-calendar/${id}/approve`, data),
 };
 
+// Adverts
+export const adsAPI = {
+  getAll: (params) => api.get('/ads', { params }),
+  getActive: () => api.get('/ads/active'),
+  create: (data) => api.post('/ads', data),
+  update: (id, data) => api.put(`/ads/${id}`, data),
+  remove: (id) => api.delete(`/ads/${id}`)
+};
+
 // Voucher APIs
 export const voucherAPI = {
   getAllVouchers: (params) => api.get('/vouchers', { params }),

@@ -6,13 +6,14 @@ import Table from '../components/common/Table';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
 import StatCard from '../components/dashboard/StatCard';
+import Modal from '../components/common/Modal';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { formatDate, formatCurrency } from '../utils/formatters';
 import { downloadCSV } from '../utils/exportHelpers';
-import { spaAPI } from '../services/api';
+import { spaAPI, inventoryAPI } from '../services/api';
 import './Spa.css';
 
 const Spa = () => {
@@ -26,12 +27,20 @@ const Spa = () => {
     monthlyRevenue: 0,
     avgRating: 0
   });
+  const [showProductsModal, setShowProductsModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [productsUsed, setProductsUsed] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
 
   const { connected, subscribeToBookingStatus } = useWebSocket();
   const { success, error: showError, info } = useNotification();
 
   useEffect(() => {
     fetchBookings();
+  }, []);
+
+  useEffect(() => {
+    loadInventory();
   }, []);
 
   useEffect(() => {
@@ -125,6 +134,44 @@ const Spa = () => {
       success('Spa bookings exported successfully!');
     } catch (err) {
       showError('Failed to export spa bookings');
+    }
+  };
+
+  const loadInventory = async () => {
+    try {
+      const res = await inventoryAPI.getItems({ limit: 100 });
+      setInventoryItems(res?.items || res?.data || []);
+    } catch (err) {
+      console.error('Failed to load inventory for spa products', err);
+    }
+  };
+
+  const openProductsModal = (booking) => {
+    setSelectedBooking(booking);
+    setProductsUsed(booking.productsUsed || []);
+    setShowProductsModal(true);
+  };
+
+  const addProductRow = () => {
+    setProductsUsed(prev => [...prev, { product: '', productName: '', quantity: 1 }]);
+  };
+
+  const updateProductRow = (idx, field, value) => {
+    setProductsUsed(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  };
+
+  const removeProductRow = (idx) => {
+    setProductsUsed(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const saveProductsUsed = async () => {
+    try {
+      await spaAPI.updateBooking(selectedBooking._id || selectedBooking.id, { productsUsed });
+      success('Products used updated');
+      setShowProductsModal(false);
+      fetchBookings();
+    } catch (err) {
+      showError('Failed to save products used');
     }
   };
 
@@ -252,6 +299,15 @@ const Spa = () => {
         };
         return <Badge variant={variants[value]}>{value.replace('_', ' ')}</Badge>;
       }
+    },
+    {
+      key: 'productsUsed',
+      header: 'Products Used',
+      render: (_, row) => (
+        <Button size="small" variant="outline" onClick={() => openProductsModal(row)}>
+          View / Edit
+        </Button>
+      )
     }
   ];
 
@@ -355,6 +411,51 @@ const Spa = () => {
           searchPlaceholder="Search bookings..."
         />
       </Card>
+
+      <Modal
+        isOpen={showProductsModal}
+        onClose={() => setShowProductsModal(false)}
+        title="Products Used"
+        size="medium"
+      >
+        <div className="space-y-3">
+          {productsUsed.map((prod, idx) => (
+            <div key={idx} className="flex items-center gap-sm">
+              <select
+                className="form-input"
+                value={prod.product}
+                onChange={(e) => {
+                  const productId = e.target.value;
+                  const item = inventoryItems.find(i => i._id === productId);
+                  updateProductRow(idx, 'product', productId);
+                  updateProductRow(idx, 'productName', item?.name || item?.itemName || prod.productName);
+                }}
+              >
+                <option value="">Select item</option>
+                {inventoryItems.map(item => (
+                  <option key={item._id} value={item._id}>{item.name || item.itemName}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                className="form-input"
+                style={{ width: '90px' }}
+                value={prod.quantity || 1}
+                min={1}
+                onChange={(e) => updateProductRow(idx, 'quantity', Number(e.target.value))}
+              />
+              <Button size="sm" variant="error" onClick={() => removeProductRow(idx)}>Remove</Button>
+            </div>
+          ))}
+
+          <Button variant="secondary" onClick={addProductRow}>Add Product</Button>
+
+          <div className="flex justify-end gap-sm pt-3 border-t">
+            <Button variant="secondary" onClick={() => setShowProductsModal(false)}>Cancel</Button>
+            <Button variant="primary" onClick={saveProductsUsed}>Save</Button>
+          </div>
+        </div>
+      </Modal>
     </Layout>
   );
 };

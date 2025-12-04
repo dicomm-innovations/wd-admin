@@ -36,6 +36,7 @@ import PTTrainers from './pages/PTTrainers';
 import PTSessions from './pages/PTSessions';
 import PTAnalytics from './pages/PTAnalytics';
 import TrainerSchedule from './pages/TrainerSchedule';
+import Adverts from './pages/Adverts';
 import GymClasses from './pages/GymClasses';
 import Referrals from './pages/Referrals';
 import ReferralAnalytics from './pages/ReferralAnalytics';
@@ -382,6 +383,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <ProgressTracking />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/adverts"
+        element={
+          <ProtectedRoute>
+            <Adverts />
           </ProtectedRoute>
         }
       />

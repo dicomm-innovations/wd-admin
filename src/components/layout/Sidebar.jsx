@@ -150,6 +150,13 @@ const Sidebar = () => {
       color: 'var(--primary-color)'
     },
     {
+      icon: Megaphone,
+      label: 'Adverts',
+      path: '/adverts',
+      show: true,
+      color: 'var(--marketing-color)'
+    },
+    {
       icon: Package,
       label: 'The Edit Collection',
       path: '/manufacturing',
